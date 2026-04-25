@@ -1,0 +1,1271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NDC Message Parser + Editor</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap');
+
+:root {
+  --bg:       #0d0f13;
+  --bg2:      #13161d;
+  --bg3:      #1a1e29;
+  --border:   #252a38;
+  --border2:  #2e3448;
+  --green:    #3ddc84;
+  --green2:   #1a7a48;
+  --amber:    #f0a500;
+  --amber2:   #7a4f00;
+  --blue:     #4d9eff;
+  --blue2:    #1a3d6b;
+  --purple:   #a78bfa;
+  --purple2:  #3b2e6b;
+  --red:      #ff5f5f;
+  --red2:     #6b1f1f;
+  --teal:     #2dd4bf;
+  --teal2:    #0d5a52;
+  --muted:    #4a5270;
+  --text:     #c8d0e8;
+  --text2:    #8892b0;
+  --text3:    #4a5270;
+  --edit:     #ff9f43;
+  --edit2:    #6b3c00;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  min-height: 100vh;
+}
+
+.topbar {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.logo {
+  font-family: 'Space Mono', monospace;
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--green);
+  letter-spacing: .04em;
+}
+.logo span { color: var(--amber); }
+.logo .edit-tag { color: var(--edit); font-size: 11px; margin-left: 6px; }
+
+.tagline {
+  font-size: 11px;
+  color: var(--muted);
+  border-left: 1px solid var(--border2);
+  padding-left: 16px;
+}
+
+.badge {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-weight: 600;
+  letter-spacing: .05em;
+}
+.badge-sent     { background: #1a3326; color: var(--green); border: 1px solid var(--green2); }
+.badge-recv     { background: #1a2d4a; color: var(--blue);  border: 1px solid var(--blue2); }
+.badge-req      { background: #1a2d4a; color: var(--blue);  border: 1px solid var(--blue2); }
+.badge-reply    { background: #1a3326; color: var(--green); border: 1px solid var(--green2); }
+.badge-warn     { background: #2d2010; color: var(--amber); border: 1px solid var(--amber2); }
+.badge-err      { background: #2d1010; color: var(--red);   border: 1px solid var(--red2); }
+.badge-emv      { background: #1e1a3a; color: var(--purple);border: 1px solid var(--purple2); }
+.badge-ok       { background: #1a3326; color: var(--green); border: 1px solid var(--green2); }
+.badge-edit     { background: #2d1e00; color: var(--edit);  border: 1px solid var(--edit2); }
+
+/* Three-column layout */
+.main {
+  display: grid;
+  grid-template-columns: 340px 1fr 360px;
+  height: calc(100vh - 49px);
+}
+
+/* LEFT: input */
+.left-panel {
+  background: var(--bg2);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+}
+
+/* CENTER: parsed view */
+.center-panel {
+  overflow-y: auto;
+  padding: 0;
+  border-right: 1px solid var(--border);
+}
+
+/* RIGHT: editor */
+.right-panel {
+  background: var(--bg2);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.panel-header {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+textarea {
+  flex: 1;
+  background: var(--bg);
+  color: #64d97e;
+  border: none;
+  outline: none;
+  padding: 12px 14px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  line-height: 1.6;
+  resize: none;
+  border-bottom: 1px solid var(--border);
+  min-height: 0;
+}
+textarea::placeholder { color: var(--text3); }
+
+.btn-row {
+  padding: 10px 14px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.btn {
+  padding: 7px 14px;
+  border-radius: 4px;
+  border: 1px solid var(--border2);
+  background: var(--bg3);
+  color: var(--text);
+  cursor: pointer;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  transition: all .15s;
+}
+.btn:hover { background: var(--border); color: #fff; }
+.btn-primary { background: #1a3326; border-color: var(--green2); color: var(--green); }
+.btn-primary:hover { background: #223d2e; }
+.btn-sm { padding: 3px 10px; font-size: 10px; }
+.btn-edit { background: #2d1e00; border-color: var(--edit2); color: var(--edit); }
+.btn-edit:hover { background: #3d2800; }
+
+/* Session bar */
+.session-list { border-bottom: 1px solid var(--border); }
+.session-item {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background .12s;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.session-item:hover { background: var(--bg3); }
+.session-item.active { background: var(--bg3); border-left: 2px solid var(--green); }
+.session-meta { flex: 1; }
+.session-title { font-size: 12px; color: var(--text); }
+.session-sub { font-size: 10px; color: var(--muted); margin-top: 2px; }
+
+.parsed-area { padding: 16px; }
+
+.section {
+  margin-bottom: 16px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.section.modified { border-color: var(--edit2); }
+
+.section-header {
+  background: var(--bg2);
+  padding: 8px 14px;
+  font-size: 10px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.field-table { width: 100%; border-collapse: collapse; }
+.field-table tr { border-bottom: 1px solid var(--border); }
+.field-table tr:last-child { border-bottom: none; }
+.field-table tr:hover { background: rgba(255,255,255,.02); }
+.field-table td { padding: 7px 14px; vertical-align: top; }
+
+.field-name { color: var(--text2); white-space: nowrap; width: 180px; font-size: 11px; }
+.field-idx  { color: var(--text3); width: 28px; font-size: 10px; }
+.field-val  { color: var(--text); word-break: break-all; font-size: 12px; }
+
+.edit-btn {
+  font-size: 9px;
+  padding: 1px 7px;
+  background: #1e1200;
+  border: 1px solid var(--edit2);
+  color: var(--edit);
+  border-radius: 3px;
+  cursor: pointer;
+  font-family: 'JetBrains Mono', monospace;
+  margin-left: 8px;
+  vertical-align: middle;
+  transition: background .12s;
+}
+.edit-btn:hover { background: #2d1e00; }
+
+.modified-marker {
+  font-size: 9px;
+  color: var(--edit);
+  margin-left: 6px;
+}
+
+/* Track 2 chips */
+.track2-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.chip { font-size: 10px; padding: 2px 8px; border-radius: 3px; }
+.chip-pan  { background: #1a2d4a; color: var(--blue); }
+.chip-exp  { background: #1a3326; color: var(--green); }
+.chip-sc   { background: #2d2010; color: var(--amber); }
+.chip-disc { background: #1e1a3a; color: var(--purple); }
+
+/* Hex view */
+.hex-view {
+  font-size: 10px;
+  line-height: 1.8;
+  padding: 10px 14px;
+  color: #4a6080;
+  font-family: 'JetBrains Mono', monospace;
+  overflow-x: auto;
+  white-space: pre;
+  background: var(--bg);
+}
+.hex-view .fs-byte { color: #c06020; }
+.hex-view .gs-byte { color: #a040a0; }
+.hex-view .ascii   { color: #2a6040; }
+
+/* EMV table */
+.emv-table { width: 100%; border-collapse: collapse; }
+.emv-table th {
+  text-align: left; padding: 6px 14px; font-size: 9px;
+  letter-spacing: .1em; color: var(--text3);
+  border-bottom: 1px solid var(--border); background: var(--bg2);
+}
+.emv-table td { padding: 6px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.emv-table tr:last-child td { border-bottom: none; }
+.emv-table tr:hover td { background: rgba(255,255,255,.02); }
+.tag-name { color: var(--amber); font-size: 11px; font-weight: 600; }
+.tag-len  { color: var(--muted); font-size: 11px; }
+.tag-val  { color: var(--teal); font-size: 11px; word-break: break-all; }
+.tag-desc { color: var(--text2); font-size: 11px; }
+.tag-decoded { color: var(--green); font-size: 10px; margin-top: 2px; }
+
+/* Stat row */
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  background: var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.stat-cell { background: var(--bg2); padding: 10px 14px; }
+.stat-label { font-size: 9px; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; }
+.stat-val   { font-size: 16px; font-weight: 600; margin-top: 4px; font-family: 'Space Mono', monospace; }
+
+/* Opcode grid */
+.opcode-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 4px;
+  padding: 10px 14px;
+}
+.op-cell { background: var(--bg); border: 1px solid var(--border2); border-radius: 3px; padding: 5px 4px; text-align: center; }
+.op-pos { font-size: 9px; color: var(--text3); }
+.op-char { font-size: 14px; color: var(--amber); font-weight: 700; margin: 2px 0; }
+.op-meaning { font-size: 8px; color: var(--text2); line-height: 1.3; }
+
+/* Placeholder */
+.placeholder {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; height: 100%; color: var(--text3);
+  gap: 8px; padding: 40px;
+}
+.placeholder-title { font-size: 14px; color: var(--muted); }
+.placeholder-sub { font-size: 11px; text-align: center; line-height: 1.7; }
+
+/* PIN warning */
+.pin-warning { font-size: 10px; color: var(--amber); padding: 4px 0; }
+
+.copy-btn {
+  font-size: 9px; padding: 2px 8px; background: transparent;
+  border: 1px solid var(--border2); color: var(--muted);
+  border-radius: 3px; cursor: pointer;
+  font-family: 'JetBrains Mono', monospace;
+}
+.copy-btn:hover { color: var(--text); border-color: var(--muted); }
+.no-messages { padding: 20px; color: var(--muted); font-size: 11px; text-align: center; }
+
+/* ========== EDITOR PANEL ========== */
+.editor-scroll { flex: 1; overflow-y: auto; padding: 12px; }
+
+.editor-placeholder {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; height: 100%;
+  color: var(--text3); gap: 8px; padding: 20px; text-align: center;
+}
+.editor-placeholder-icon { font-size: 28px; margin-bottom: 4px; }
+
+.editor-field-list { display: flex; flex-direction: column; gap: 6px; }
+
+.editor-field {
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  overflow: hidden;
+  transition: border-color .15s;
+}
+.editor-field.is-modified { border-color: var(--edit); }
+.editor-field.is-active { border-color: var(--blue); }
+
+.efield-header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 10px;
+  background: var(--bg3);
+  cursor: pointer;
+  user-select: none;
+}
+.efield-header:hover { background: var(--border); }
+.efield-idx-badge {
+  font-size: 9px; padding: 1px 6px; background: var(--bg);
+  border: 1px solid var(--border2); border-radius: 2px; color: var(--text3);
+}
+.efield-name { flex: 1; font-size: 11px; color: var(--text2); }
+.efield-preview {
+  font-size: 10px; color: var(--text3); max-width: 90px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.efield-mod-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--edit); flex-shrink: 0; display: none;
+}
+.is-modified .efield-mod-dot { display: block; }
+
+.efield-body {
+  display: none;
+  padding: 10px;
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+}
+.efield-body.open { display: block; }
+
+.efield-label {
+  font-size: 9px; color: var(--muted); letter-spacing: .08em;
+  text-transform: uppercase; margin-bottom: 4px;
+}
+
+.efield-input {
+  width: 100%;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 3px;
+  color: var(--text);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  padding: 6px 8px;
+  outline: none;
+  transition: border-color .15s;
+}
+.efield-input:focus { border-color: var(--blue); }
+.efield-input.modified { border-color: var(--edit); color: var(--edit); }
+
+.efield-actions {
+  display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap;
+}
+.efield-btn {
+  font-size: 9px; padding: 3px 10px;
+  border-radius: 3px; border: 1px solid var(--border2);
+  background: var(--bg3); color: var(--text2);
+  cursor: pointer; font-family: 'JetBrains Mono', monospace;
+  transition: all .12s;
+}
+.efield-btn:hover { background: var(--border); color: #fff; }
+.efield-btn-apply { border-color: var(--edit2); color: var(--edit); background: #1e1200; }
+.efield-btn-apply:hover { background: #2d1e00; }
+.efield-btn-reset { border-color: var(--red2); color: var(--red); background: #1a0d0d; }
+.efield-btn-reset:hover { background: #2d1010; }
+
+.efield-info { font-size: 9px; color: var(--text3); margin-top: 6px; line-height: 1.5; }
+.efield-hex-preview { font-size: 9px; color: var(--teal); margin-top: 4px; }
+
+/* Rebuild output */
+.rebuild-section {
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+  padding: 12px;
+}
+.rebuild-label {
+  font-size: 9px; color: var(--muted); letter-spacing: .08em;
+  text-transform: uppercase; margin-bottom: 6px;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.rebuilt-hex {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px 10px;
+  font-size: 10px;
+  color: var(--green);
+  font-family: 'JetBrains Mono', monospace;
+  max-height: 110px;
+  overflow-y: auto;
+  word-break: break-all;
+  line-height: 1.6;
+}
+.rebuilt-hex.has-edits { border-color: var(--edit2); color: var(--edit); }
+.rebuild-btn-row { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+
+/* format selector */
+.format-row {
+  display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap;
+}
+.format-opt {
+  font-size: 10px; padding: 3px 10px;
+  border-radius: 3px; border: 1px solid var(--border2);
+  background: var(--bg3); color: var(--text3);
+  cursor: pointer; font-family: 'JetBrains Mono', monospace;
+  transition: all .12s;
+}
+.format-opt.active { border-color: var(--teal); color: var(--teal); background: #0d2d2a; }
+.format-opt:hover { color: var(--text); }
+
+.edit-counter {
+  font-size: 10px;
+  color: var(--edit);
+  padding: 0 6px;
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="logo">NDC<span>.</span>PARSE <span class="edit-tag">+ EDIT</span></div>
+  <div class="tagline">ATM NDC Protocol Analyzer · Parse · Edit · Rebuild TCP payload</div>
+</div>
+
+<div class="main">
+  <!-- LEFT: input -->
+  <div class="left-panel">
+    <div class="panel-header">
+      <span>Input — Echo Mirage / Wireshark log</span>
+      <button class="btn btn-sm" onclick="clearAll()">Clear</button>
+    </div>
+    <textarea id="inp" placeholder="Paste one or more TCP log blocks here.
+
+Example:
+TCP:Sent 390 bytes to 10.2.1.122:2903
+0000: 01 84 31 31 1C 30 30 30 ...
+
+TCP:Received 64 bytes from 10.2.1.122:2903
+0000: 00 3E 32 35 1C ...
+
+After parsing, use the Editor panel on the right to modify any field, then export the rebuilt hex for replay."></textarea>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="parseAll()">&#9654; Parse</button>
+      <button class="btn" onclick="loadExample()">Load example</button>
+      <button class="btn" onclick="exportJson()">Export JSON</button>
+    </div>
+  </div>
+
+  <!-- CENTER: parsed view -->
+  <div class="center-panel" id="center">
+    <div class="placeholder" id="placeholder">
+      <div class="placeholder-title">Paste a TCP hex dump and click Parse</div>
+      <div class="placeholder-sub">
+        Supports Echo Mirage TCP:Sent / TCP:Received format<br>
+        and raw Wireshark hex dumps.<br><br>
+        Decodes: NDC message class · LUNO · Track 2<br>
+        Opcode · Amount · PIN block · EMV TLV tags<br><br>
+        <span style="color:var(--edit)">✎ New: Edit any field in the right panel<br>and rebuild/export the modified packet</span>
+      </div>
+    </div>
+    <div id="session-bar" style="display:none"></div>
+    <div id="parsed-out"></div>
+  </div>
+
+  <!-- RIGHT: editor -->
+  <div class="right-panel">
+    <div class="panel-header">
+      <span>Field Editor <span class="edit-counter" id="edit-counter"></span></span>
+      <button class="btn btn-sm btn-edit" onclick="resetAllEdits()">Reset all</button>
+    </div>
+
+    <div class="editor-scroll" id="editor-scroll">
+      <div class="editor-placeholder" id="editor-placeholder">
+        <div class="editor-placeholder-icon">✎</div>
+        <div style="color:var(--muted);font-size:12px">Field Editor</div>
+        <div style="font-size:11px;line-height:1.7;margin-top:8px">
+          Parse a message first.<br>
+          Each NDC field will appear here<br>for editing and replay.
+        </div>
+      </div>
+      <div id="editor-fields" style="display:none">
+        <div class="editor-field-list" id="field-list"></div>
+      </div>
+    </div>
+
+    <div class="rebuild-section" id="rebuild-section" style="display:none">
+      <div class="rebuild-label">
+        <span>Output Format</span>
+      </div>
+      <div class="format-row">
+        <div class="format-opt active" onclick="setFmt('echo')" id="fmt-echo">Echo Mirage</div>
+        <div class="format-opt" onclick="setFmt('wireshark')" id="fmt-wireshark">Wireshark</div>
+        <div class="format-opt" onclick="setFmt('raw')" id="fmt-raw">Raw hex</div>
+        <div class="format-opt" onclick="setFmt('c')" id="fmt-c">C array</div>
+        <div class="format-opt" onclick="setFmt('python')" id="fmt-python">Python bytes</div>
+      </div>
+      <div class="rebuild-label">
+        <span>Rebuilt Packet</span>
+        <button class="copy-btn" onclick="copyRebuilt()">Copy</button>
+      </div>
+      <div class="rebuilt-hex" id="rebuilt-hex">—</div>
+      <div class="rebuild-btn-row">
+        <button class="btn btn-edit" onclick="rebuildPacket()" style="flex:1">⟳ Rebuild Packet</button>
+        <button class="btn" onclick="downloadRebuilt()">↓ Download</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const FS=0x1C, GS=0x1D, RS=0x1E;
+
+const MSG_CLASSES = {
+  '1':{ name:'Transaction Request',  dir:'ATM → Host',  subs:{'1':'Read Data','2':'Send Data','3':'Extended Reply'} },
+  '2':{ name:'Transaction Reply',    dir:'Host → ATM',  subs:{'1':'Read Data','2':'Send Data','5':'Completion'} },
+  '4':{ name:'Solicited Status',     dir:'ATM → Host',  subs:{'1':'Status','2':'Configuration','3':'Supply Counters','4':'Error Log','5':'Date/Time'} },
+  '5':{ name:'Unsolicited Status',   dir:'ATM → Host',  subs:{'1':'Status','2':'Configuration','3':'Supply Counters','4':'Error Log'} },
+  '6':{ name:'Terminal Command',     dir:'Host → ATM',  subs:{'1':'Go In Service','2':'Go Out Of Service','3':'Send Config'} },
+  '8':{ name:'Date/Time',            dir:'Host → ATM',  subs:{'1':'Date/Time Info'} },
+  'B':{ name:'Terminal Command',     dir:'Host → ATM',  subs:{'1':'Send Data'} },
+  'N':{ name:'State Table Load',     dir:'Host → ATM',  subs:{'1':'Reply'} },
+};
+
+const TXN_REQ_FIELDS = [
+  'Class + Subclass','LUNO (terminal ID)','Time Variant Number',
+  'Reserved','Top of Form / Coordinates','Track 2 Data','Track 1 Data',
+  'Opcode Data','Amount Entry','PIN Block','Buffer B','Buffer C',
+  'Buffer D','Transaction Status / Buffer E','ICC / EMV Buffer',
+];
+
+const FIELD_HINTS = [
+  'e.g. 11 for Transaction Request','6-digit terminal ID, e.g. 000001',
+  'Time variant / sequence number','Usually empty','Coordinates or form info',
+  'Track 2: ;PAN=YYMMSSCODE...?','Track 1: %B...? (optional)',
+  '8-char opcode string','Amount in minor units, e.g. 000000001000',
+  'HEX: 16 hex chars for 8-byte PIN block (encrypted)',
+  'Buffer B data','Buffer C data','Buffer D data',
+  'Transaction status flags','EMV TLV hex data',
+];
+
+const OPCODE_POSITIONS = [
+  { label:'Function', values:{'C':'Withdrawal','D':'Balance Inquiry','B':'Transfer','P':'PIN Change','M':'Payment','A':'Auth','F':'Fast Cash','I':'Mini-stmt','L':'Loan','S':'Statement','N':'No transaction','Z':'PIN Verify'} },
+  { label:'Card type', values:{'A':'No card','B':'Mag only','C':'Chip only','D':'Chip+Mag','E':'Both tracks','F':'Track1 only','G':'Track3 only',' ':'Not used'} },
+  { label:'Amt digits', values:{} },
+  { label:'Track select', values:{'A':'Track1','B':'Track2','C':'Track1+2','D':'Track3',' ':'Default'} },
+  { label:'Buffers req', values:{'A':'Buffer A','B':'Buffer B','C':'ICC/EMV','D':'Barcode','E':'All',' ':'None'} },
+  { label:'PAN source', values:{'A':'Track1','B':'Track2','C':'Keyed',' ':'Default'} },
+  { label:'Response', values:{'A':'Authorization','B':'Offline','C':'Host',' ':'Default'} },
+  { label:'PIN format', values:{'A':'ISO 0','B':'ISO 1','C':'ISO 3','D':'DES','E':'3DES',' ':'Default'} },
+];
+
+const EMV_TAGS = {
+  '9F02':'Amount, Authorized','9F03':'Amount, Other','9F1A':'Terminal Country Code',
+  '95':'Terminal Verification Results','9A':'Transaction Date','9C':'Transaction Type',
+  '9F37':'Unpredictable Number','9F33':'Terminal Capabilities','9F27':'Cryptogram Info Data',
+  '9F36':'Application Transaction Counter','9F26':'Application Cryptogram',
+  '9F10':'Issuer Application Data','82':'App Interchange Profile',
+  '57':'Track 2 Equivalent Data','9F34':'CVM Results','5F34':'PAN Sequence Number',
+  '84':'Dedicated File Name (AID)','5F2A':'Transaction Currency Code',
+  '9F35':'Terminal Type','9F09':'App Version Number','9F41':'Transaction Seq Counter',
+  '9B':'Terminal Status Info','9F06':'AID — Terminal','9F07':'App Usage Control',
+  '9F08':'App Version Number (card)','9F0D':'Issuer Action Code — Default',
+  '9F0E':'Issuer Action Code — Denial','9F0F':'Issuer Action Code — Online',
+  '9F11':'Issuer Code Table Index','9F12':'App Preferred Name',
+  '50':'Application Label','87':'App Priority Indicator',
+  '9F4E':'Merchant Name and Location','9F39':'POS Entry Mode',
+  '9F40':'Additional Terminal Capabilities','9F15':'Merchant Category Code',
+  '9F16':'Merchant Identifier','9F21':'Transaction Time',
+  '5F24':'Application Expiry Date','5F25':'Application Effective Date',
+  '5F20':'Cardholder Name','5F30':'Service Code',
+  'DF60':'Kernel ID','9F5B':'Issuer Script Results',
+};
+
+const CURRENCY_CODES = {
+  '0818':'EGP — Egyptian Pound','0840':'USD — US Dollar',
+  '0978':'EUR — Euro','0826':'GBP — British Pound',
+  '0682':'SAR — Saudi Riyal','0784':'AED — Emirati Dirham',
+  '0634':'QAR — Qatari Riyal','0512':'OMR — Omani Rial',
+  '0414':'KWD — Kuwaiti Dinar','0048':'BHD — Bahraini Dinar',
+};
+
+const COUNTRY_CODES = {
+  '0818':'Egypt','0840':'United States','0978':'Eurozone',
+  '0826':'United Kingdom','0682':'Saudi Arabia','0784':'UAE',
+  '0634':'Qatar','0512':'Oman','0414':'Kuwait','0048':'Bahrain',
+};
+
+const TXN_TYPES = {
+  '00':'Purchase','01':'Cash Advance','02':'Debit','09':'Cash Disbursement',
+  '17':'Payment','20':'Balance Inquiry','21':'Balance Inquiry (savings)',
+  '28':'Payment','30':'Cash Disbursement','31':'Transfer',
+};
+
+const TVR_BITS = [
+  [7,'Offline data auth not performed'],[6,'SDA failed'],[5,'ICC data missing'],
+  [4,'Card on terminal exception file'],[3,'DDA failed'],[2,'CDA failed'],
+  [15,'ICC and terminal versions differ'],[14,'Expired app'],[13,'App not yet effective'],
+  [12,'Requested service not allowed for card product'],[11,'New card'],
+  [23,'Cardholder verification was not successful'],[22,'Unrecognized CVM'],
+  [21,'PIN try limit exceeded'],[20,'PIN entry required / PIN pad not present'],
+  [19,'PIN entry required / PIN pad present / PIN not entered'],[18,'Online PIN entered'],
+  [31,'Transaction exceeds floor limit'],[30,'Lower consecutive offline limit exceeded'],
+  [29,'Upper consecutive offline limit exceeded'],
+  [28,'Transaction selected randomly for online processing'],
+  [27,'Merchant forced transaction online'],[39,'Default TDOL used'],
+  [38,'Issuer authentication failed'],
+  [37,'Script processing failed before final GENERATE AC'],
+  [36,'Script processing failed after final GENERATE AC'],
+];
+
+const AIDS = {
+  'A0000000031010':'Visa Credit/Debit','A0000000032010':'Visa Electron',
+  'A0000000033010':'Visa Classic','A0000000041010':'Mastercard Credit',
+  'A0000000043060':'Mastercard Maestro','A0000000046000':'Mastercard Cirrus',
+  'A0000000651010':'JCB','A0000000980840':'Visa Common Debit',
+  'A0000002771010':'Interac','A0000000250101':'Amex',
+};
+
+// ---- State ----
+let sessions = [];
+let activeIdx = 0;
+let edits = {};       // { fieldIndex: 'new ascii value' }
+let outputFmt = 'echo';
+
+function parseHexDump(text) {
+  const bytes = [];
+  const re = /^[0-9A-Fa-f]{3,4}:\s+((?:[0-9A-Fa-f]{2}\s*){1,16})/gm;
+  let m;
+  while ((m = re.exec(text)) !== null)
+    m[1].trim().split(/\s+/).forEach(h => bytes.push(parseInt(h,16)));
+  if (bytes.length === 0) {
+    const plain = text.replace(/\s/g,'');
+    if (/^[0-9A-Fa-f]+$/.test(plain))
+      for (let i=0;i<plain.length-1;i+=2) bytes.push(parseInt(plain.slice(i,i+2),16));
+  }
+  return bytes;
+}
+
+function splitBlocks(text) {
+  const blocks=[];
+  const re=/(TCP:\w+\s+\d+\s+bytes\s+(?:to|from)\s+[\d.]+:\d+)/gi;
+  const parts=text.split(re);
+  for (let i=1;i<parts.length;i+=2) blocks.push({header:parts[i],body:parts[i+1]||''});
+  if (!blocks.length) blocks.push({header:'',body:text});
+  return blocks;
+}
+
+function toAscii(bytes){ return bytes.map(b=>(b>=0x20&&b<0x7F)?String.fromCharCode(b):'.').join(''); }
+function toHex(bytes){ return bytes.map(b=>b.toString(16).toUpperCase().padStart(2,'0')).join(''); }
+
+function splitByFS(bytes){
+  const fields=[],cur=[];
+  for(const b of bytes){ if(b===FS){fields.push([...cur]);cur.length=0;}else cur.push(b); }
+  fields.push([...cur]);
+  return fields;
+}
+
+function parseTrack2(s){
+  if(!s||!s.startsWith(';')) return null;
+  const inner=s.replace(/[;?]/g,'');
+  const eq=inner.indexOf('=');
+  if(eq<0) return null;
+  const pan=inner.slice(0,eq), rest=inner.slice(eq+1);
+  return { pan, expRaw:rest.slice(0,4), exp:`20${rest.slice(0,2)}-${rest.slice(2,4)}`, sc:rest.slice(4,7), disc:rest.slice(7) };
+}
+
+function parseEmvTlv(hexStr){
+  const tags=[];
+  let i=0;
+  const h=hexStr.replace(/\s/g,'').toUpperCase();
+  while(i<h.length-1){
+    let tag=h[i]+h[i+1];i+=2;
+    if((parseInt(tag,16)&0x1F)===0x1F&&i<h.length){tag+=h[i]+h[i+1];i+=2;}
+    if(i>=h.length) break;
+    const lenB=parseInt(h[i]+h[i+1],16);i+=2;
+    let len=lenB;
+    if(lenB===0x81){len=parseInt(h[i]+h[i+1],16);i+=2;}
+    else if(lenB===0x82){len=parseInt(h.slice(i,i+4),16);i+=4;}
+    const val=h.slice(i,i+len*2);i+=len*2;
+    tags.push({tag,len,val});
+  }
+  return tags;
+}
+
+function decodeTagVal(tag,val){
+  const t=tag.toUpperCase();
+  if(['9F1A'].includes(t)) return `${val} — ${COUNTRY_CODES[val]||'Unknown country'}`;
+  if(['5F2A'].includes(t)) return `${val} — ${CURRENCY_CODES[val]||'Unknown currency'}`;
+  if(t==='9A'){const y='20'+val.slice(0,2),m=val.slice(2,4),d=val.slice(4,6);return`${y}-${m}-${d}`;}
+  if(t==='9C') return`${val} — ${TXN_TYPES[val]||'Unknown'}`;
+  if(t==='9F02'||t==='9F03'){const a=parseInt(val,16);return`${(a/100).toFixed(2)} (amount in minor units)`;}
+  if(t==='9F36') return`${parseInt(val,16)} (decimal)`;
+  if(t==='84') return`${val} — ${AIDS[val]||'Unknown AID'}`;
+  if(t==='9F27'){const cid=parseInt(val,16);const types=['AAC (Decline)','TC (Approve)','ARQC (Online request)','RFU'];return`${val} — ${types[(cid>>6)&3]}`;}
+  if(t==='57'){const eq=val.indexOf('D');if(eq>0)return`PAN:${val.slice(0,eq)} Exp:${val.slice(eq+1,eq+5)} SC:${val.slice(eq+5,eq+8)}`;}
+  if(t==='9F34'){
+    const b0=parseInt(val.slice(0,2),16);
+    const cvmCodes={0:'Fail CVM',1:'Fail if not supported',2:'Online PIN',3:'Signature',4:'Offline enc PIN',5:'Offline plain PIN',6:'Offline enc PIN + Signature',7:'Offline plain PIN + Signature',30:'NoCVM',31:'NoCVM if not supported'};
+    return`CVM:${cvmCodes[b0&0x3F]||'Unknown'} Result:${val.slice(4,6)==='00'?'Unknown':val.slice(4,6)==='01'?'Failed':'Successful'}`;
+  }
+  return null;
+}
+
+function renderTVR(val){
+  const bytes=[];
+  for(let i=0;i<val.length;i+=2)bytes.push(parseInt(val.slice(i,i+2),16));
+  const bits=(bytes[0]<<32)|(bytes[1]<<24)|(bytes[2]<<16)|(bytes[3]<<8)|bytes[4];
+  const set=TVR_BITS.filter(([bit])=>(bits>>(39-bit))&1).map(([,desc])=>desc);
+  return set.length?set.join(', '):'All clear';
+}
+
+function renderHexView(bytes){
+  let out='';
+  for(let i=0;i<bytes.length;i+=16){
+    const row=bytes.slice(i,i+16);
+    const off=i.toString(16).toUpperCase().padStart(4,'0');
+    let hex='',asc='';
+    row.forEach((b,j)=>{
+      const h=b.toString(16).toUpperCase().padStart(2,'0');
+      const sep=j===7?'  ':' ';
+      if(b===FS){hex+=`<span class="fs-byte">${h}</span>${sep}`;asc+=`<span class="fs-byte">|</span>`;}
+      else if(b===GS){hex+=`<span class="gs-byte">${h}</span>${sep}`;asc+=`<span class="gs-byte">^</span>`;}
+      else if(b>=0x20&&b<0x7F){hex+=h+sep;asc+=`<span class="ascii">${String.fromCharCode(b)}</span>`;}
+      else{hex+=h+sep;asc+='.';}
+    });
+    while(hex.length<50)hex+=' ';
+    out+=`<span style="color:var(--text3)">${off}:</span> ${hex}  ${asc}\n`;
+  }
+  return out;
+}
+
+function parseMessage(header,body){
+  const bytes=parseHexDump(body);
+  if(bytes.length<4) return null;
+  const m=header.match(/(TCP:\w+)\s+(\d+)\s+bytes\s+(?:to|from)\s+([\d.:]+)/i)||[];
+  const dir=m[1]||'TCP';
+  const totalBytes=parseInt(m[2])||bytes.length;
+  const peer=m[3]||'?';
+  const isSent=/sent/i.test(dir);
+  const frameLen=(bytes[0]<<8)|bytes[1];
+  const ndcBytes=bytes.slice(2);
+  const fields=splitByFS(ndcBytes);
+  const msgClass=String.fromCharCode(fields[0]?.[0]||0x3F);
+  const msgSub=String.fromCharCode(fields[0]?.[1]||0x3F);
+  const classInfo=MSG_CLASSES[msgClass]||{name:'Unknown',dir:'?',subs:{}};
+  const subName=classInfo.subs[msgSub]||'Unknown subclass';
+  return { header, dir, isSent, totalBytes, frameLen, peer, bytes, ndcBytes, fields, msgClass, msgSub, classInfo, subName };
+}
+
+// ======= REBUILD =======
+function getEditedFields(){
+  const msg=sessions[activeIdx];
+  if(!msg) return [];
+  return msg.fields.map((f,i)=>{
+    if(edits[i]!==undefined){
+      // convert ascii string to bytes
+      return edits[i].split('').map(c=>c.charCodeAt(0));
+    }
+    return f;
+  });
+}
+
+function buildNdcBytes(fields){
+  const out=[];
+  fields.forEach((f,i)=>{
+    out.push(...f);
+    if(i<fields.length-1) out.push(FS);
+  });
+  return out;
+}
+
+function buildFullPacket(){
+  const ndcBytes=buildNdcBytes(getEditedFields());
+  const len=ndcBytes.length;
+  const full=[(len>>8)&0xFF, len&0xFF, ...ndcBytes];
+  return full;
+}
+
+function formatPacket(bytes){
+  const msg=sessions[activeIdx];
+  const header=msg.header||'TCP:Sent N bytes to 0.0.0.0:2903';
+  if(outputFmt==='raw'){
+    return bytes.map(b=>b.toString(16).toUpperCase().padStart(2,'0')).join(' ');
+  }
+  if(outputFmt==='echo'||outputFmt==='wireshark'){
+    let out=`${header}\n`;
+    for(let i=0;i<bytes.length;i+=16){
+      const row=bytes.slice(i,i+16);
+      const off=i.toString(16).toUpperCase().padStart(4,'0');
+      const hex=row.map(b=>b.toString(16).toUpperCase().padStart(2,'0')).join(' ');
+      const asc=row.map(b=>(b>=0x20&&b<0x7F)?String.fromCharCode(b):'.').join('');
+      out+=`${off}: ${hex.padEnd(48,' ')} ${asc}\n`;
+    }
+    return out.trim();
+  }
+  if(outputFmt==='c'){
+    const hexArr=bytes.map(b=>'0x'+b.toString(16).toUpperCase().padStart(2,'0'));
+    let out='uint8_t pkt[] = {\n';
+    for(let i=0;i<hexArr.length;i+=16){
+      out+='  '+hexArr.slice(i,i+16).join(', ')+',\n';
+    }
+    out+='};';
+    return out;
+  }
+  if(outputFmt==='python'){
+    const hexStr=bytes.map(b=>'\\x'+b.toString(16).padStart(2,'0')).join('');
+    return `pkt = b"${hexStr}"`;
+  }
+  return '';
+}
+
+function rebuildPacket(){
+  if(!sessions.length) return;
+  const bytes=buildFullPacket();
+  const formatted=formatPacket(bytes);
+  const el=document.getElementById('rebuilt-hex');
+  el.textContent=formatted;
+  el.classList.toggle('has-edits', Object.keys(edits).length>0);
+}
+
+function copyRebuilt(){
+  const el=document.getElementById('rebuilt-hex');
+  navigator.clipboard.writeText(el.textContent);
+  el.style.borderColor='var(--green)';
+  setTimeout(()=>el.style.borderColor='',1200);
+}
+
+function downloadRebuilt(){
+  const el=document.getElementById('rebuilt-hex');
+  const ext=outputFmt==='c'?'c':outputFmt==='python'?'py':'txt';
+  const blob=new Blob([el.textContent],{type:'text/plain'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`ndc-rebuilt.${ext}`;
+  a.click();
+}
+
+function setFmt(f){
+  outputFmt=f;
+  document.querySelectorAll('.format-opt').forEach(el=>el.classList.remove('active'));
+  document.getElementById('fmt-'+f)?.classList.add('active');
+  rebuildPacket();
+}
+
+// ======= EDITOR =======
+function buildEditor(msg){
+  edits={};
+  updateEditCounter();
+  const list=document.getElementById('field-list');
+  list.innerHTML='';
+  msg.fields.forEach((f,i)=>{
+    const name=TXN_REQ_FIELDS[i]||`Field ${i}`;
+    const hint=FIELD_HINTS[i]||'';
+    const val=toAscii(f);
+    const hexVal=toHex(f);
+    const el=document.createElement('div');
+    el.className='editor-field';
+    el.id=`ef-${i}`;
+    el.innerHTML=`
+      <div class="efield-header" onclick="toggleField(${i})">
+        <div class="efield-idx-badge">F${i}</div>
+        <div class="efield-name">${name}</div>
+        <div class="efield-preview" id="efp-${i}">${val.slice(0,16)||'<empty>'}</div>
+        <div class="efield-mod-dot" id="efd-${i}"></div>
+      </div>
+      <div class="efield-body" id="efb-${i}">
+        <div class="efield-label">ASCII Value</div>
+        <input class="efield-input" id="efi-${i}" type="text" value="${val}" 
+               placeholder="${hint}"
+               oninput="onFieldInput(${i})" />
+        <div class="efield-hex-preview" id="efh-${i}">hex: ${hexVal||'(empty)'}</div>
+        <div class="efield-info" id="efinfo-${i}"></div>
+        <div class="efield-actions">
+          <button class="efield-btn efield-btn-apply" onclick="applyField(${i})">✔ Apply</button>
+          <button class="efield-btn efield-btn-reset" onclick="resetField(${i})">↩ Reset</button>
+        </div>
+      </div>`;
+    list.appendChild(el);
+    updateFieldInfo(i);
+  });
+  document.getElementById('editor-placeholder').style.display='none';
+  document.getElementById('editor-fields').style.display='block';
+  document.getElementById('rebuild-section').style.display='block';
+  rebuildPacket();
+}
+
+function toggleField(i){
+  const body=document.getElementById('efb-'+i);
+  body.classList.toggle('open');
+  document.getElementById('ef-'+i).classList.toggle('is-active',body.classList.contains('open'));
+}
+
+function onFieldInput(i){
+  const inp=document.getElementById('efi-'+i);
+  const val=inp.value;
+  // live hex preview
+  const hexStr=val.split('').map(c=>c.charCodeAt(0).toString(16).toUpperCase().padStart(2,'0')).join(' ');
+  document.getElementById('efh-'+i).textContent='hex: '+( hexStr||'(empty)' );
+  updateFieldInfo(i);
+}
+
+function applyField(i){
+  const inp=document.getElementById('efi-'+i);
+  const orig=toAscii(sessions[activeIdx].fields[i]||[]);
+  const val=inp.value;
+  if(val!==orig){
+    edits[i]=val;
+    document.getElementById('ef-'+i).classList.add('is-modified');
+    document.getElementById('efd-'+i).style.display='block';
+    inp.classList.add('modified');
+  } else {
+    delete edits[i];
+    document.getElementById('ef-'+i).classList.remove('is-modified');
+    document.getElementById('efd-'+i).style.display='none';
+    inp.classList.remove('modified');
+  }
+  document.getElementById('efp-'+i).textContent=val.slice(0,16)||'<empty>';
+  updateEditCounter();
+  rebuildPacket();
+}
+
+function resetField(i){
+  if(!sessions[activeIdx]) return;
+  const orig=toAscii(sessions[activeIdx].fields[i]||[]);
+  document.getElementById('efi-'+i).value=orig;
+  document.getElementById('efi-'+i).classList.remove('modified');
+  document.getElementById('ef-'+i).classList.remove('is-modified');
+  document.getElementById('efd-'+i).style.display='none';
+  document.getElementById('efp-'+i).textContent=orig.slice(0,16)||'<empty>';
+  const hexStr=orig.split('').map(c=>c.charCodeAt(0).toString(16).toUpperCase().padStart(2,'0')).join(' ');
+  document.getElementById('efh-'+i).textContent='hex: '+(hexStr||'(empty)');
+  delete edits[i];
+  updateEditCounter();
+  rebuildPacket();
+}
+
+function resetAllEdits(){
+  if(!sessions[activeIdx]) return;
+  Object.keys(edits).forEach(i=>resetField(parseInt(i)));
+}
+
+function updateEditCounter(){
+  const n=Object.keys(edits).length;
+  const el=document.getElementById('edit-counter');
+  el.textContent=n>0?`(${n} modified)`:'';
+  el.style.color=n>0?'var(--edit)':'';
+}
+
+function updateFieldInfo(i){
+  const el=document.getElementById('efinfo-'+i);
+  if(!el) return;
+  const inp=document.getElementById('efi-'+i);
+  const val=inp?inp.value:'';
+  let info='';
+  // Special field info
+  if(i===5){
+    const t2=parseTrack2(val);
+    if(t2) info=`PAN: ${t2.pan} | Exp: ${t2.exp} | SC: ${t2.sc}`;
+  }
+  if(i===8){
+    const n=parseInt(val,10);
+    if(!isNaN(n)) info=`Amount: ${(n/100).toFixed(2)} (assuming minor units)`;
+  }
+  if(i===9){
+    if(val.length===16&&/^[0-9A-Fa-f]+$/.test(val)) info=`Valid 8-byte PIN block (${val.length} hex chars)`;
+    else if(val) info=`⚠ PIN block should be 16 hex chars`;
+  }
+  el.textContent=info;
+}
+
+// ======= PARSE/RENDER (original) =======
+function renderParsed(msg){
+  if(!msg) return '<div class="no-messages">Could not parse this block.</div>';
+  const {isSent,totalBytes,frameLen,peer,bytes,ndcBytes,fields,msgClass,msgSub,classInfo,subName}=msg;
+  const dirBadge=isSent?`<span class="badge badge-sent">SENT</span>`:`<span class="badge badge-recv">RECV</span>`;
+  const typeBadge=msgClass==='1'||msgClass==='4'||msgClass==='5'
+    ?`<span class="badge badge-req">${classInfo.name}</span>`
+    :`<span class="badge badge-reply">${classInfo.name}</span>`;
+
+  let html='';
+  html+=`<div class="stat-row">
+    <div class="stat-cell"><div class="stat-label">Direction</div><div class="stat-val" style="font-size:12px;color:${isSent?'var(--green)':'var(--blue)'}">${isSent?'ATM → Host':'Host → ATM'}</div></div>
+    <div class="stat-cell"><div class="stat-label">Total bytes</div><div class="stat-val" style="color:var(--amber)">${totalBytes}</div></div>
+    <div class="stat-cell"><div class="stat-label">NDC payload</div><div class="stat-val" style="color:var(--amber)">${frameLen}</div></div>
+    <div class="stat-cell"><div class="stat-label">NDC fields</div><div class="stat-val" style="color:var(--teal)">${fields.length}</div></div>
+  </div>`;
+
+  html+=section('NDC Message Header',`${dirBadge} ${typeBadge}`,`
+    <table class="field-table">
+      <tr><td class="field-idx">F0</td><td class="field-name">Message class</td><td class="field-val">${msgClass} <span class="badge badge-ok">${classInfo.name}</span><button class="edit-btn" onclick="jumpEdit(0)">✎ Edit</button></td></tr>
+      <tr><td class="field-idx"></td><td class="field-name">Subclass</td><td class="field-val">${msgSub} — ${subName}</td></tr>
+      <tr><td class="field-idx">F1</td><td class="field-name">LUNO (terminal ID)</td><td class="field-val">${toAscii(fields[1]||[])||'<span style="color:var(--muted)">empty</span>'}<button class="edit-btn" onclick="jumpEdit(1)">✎ Edit</button></td></tr>
+      <tr><td class="field-idx">F2</td><td class="field-name">Time Variant Number</td><td class="field-val">${toAscii(fields[2]||[])||'<span style="color:var(--muted)">empty</span>'}<button class="edit-btn" onclick="jumpEdit(2)">✎ Edit</button></td></tr>
+      <tr><td class="field-idx">F3</td><td class="field-name">Reserved</td><td class="field-val">${toAscii(fields[3]||[])||'<span style="color:var(--muted)">empty</span>'}</td></tr>
+      <tr><td class="field-idx">F4</td><td class="field-name">Top of Form / Coords</td><td class="field-val"><span style="color:var(--teal)">${toAscii(fields[4]||[])||'<span style="color:var(--muted)">empty</span>'}</span><button class="edit-btn" onclick="jumpEdit(4)">✎ Edit</button></td></tr>
+    </table>`);
+
+  const track2raw=toAscii(fields[5]||[]);
+  const t2=parseTrack2(track2raw);
+  if(t2){
+    html+=section('Track 2 Data','<span class="badge badge-warn">Sensitive</span>',`
+      <table class="field-table">
+        <tr><td class="field-idx">F5</td><td class="field-name">Raw Track 2</td><td class="field-val"><span style="color:var(--amber)">${track2raw}</span><button class="edit-btn" onclick="jumpEdit(5)">✎ Edit</button></td></tr>
+        <tr><td class="field-idx"></td><td class="field-name">PAN</td><td class="field-val"><span style="color:var(--green)">${t2.pan}</span>
+          <div class="track2-chips">
+            <span class="chip chip-pan">PAN: ${t2.pan}</span>
+            <span class="chip chip-exp">Exp: ${t2.exp}</span>
+            <span class="chip chip-sc">Svc: ${t2.sc}</span>
+            <span class="chip chip-disc">Disc: ${t2.disc}</span>
+          </div>
+        </td></tr>
+      </table>`);
+  } else if(track2raw){
+    html+=section('Track 2 Data','',`<table class="field-table"><tr><td class="field-idx">F5</td><td class="field-name">Track 2</td><td class="field-val">${track2raw}<button class="edit-btn" onclick="jumpEdit(5)">✎ Edit</button></td></tr></table>`);
+  }
+
+  const track1raw=toAscii(fields[6]||[]);
+  if(track1raw){
+    html+=section('Track 1 Data','',`<table class="field-table"><tr><td class="field-idx">F6</td><td class="field-name">Track 1</td><td class="field-val"><span style="color:var(--amber)">${track1raw}</span><button class="edit-btn" onclick="jumpEdit(6)">✎ Edit</button></td></tr></table>`);
+  }
+
+  const opcodeRaw=toAscii(fields[7]||[]);
+  if(opcodeRaw){
+    const ops=(opcodeRaw+'        ').slice(0,8).split('');
+    let opGrid='';
+    OPCODE_POSITIONS.forEach((pos,i)=>{
+      const ch=ops[i]||' ';
+      const meaning=pos.values[ch]||(ch.trim()?ch:'—');
+      opGrid+=`<div class="op-cell"><div class="op-pos">P${i}</div><div class="op-char">${ch.trim()||'·'}</div><div class="op-meaning">${pos.label}<br><span style="color:var(--text)">${meaning}</span></div></div>`;
+    });
+    html+=section('Opcode Data',`<span class="badge badge-warn">F7</span> <button class="edit-btn" onclick="jumpEdit(7)">✎ Edit</button>`,`<div class="opcode-grid">${opGrid}</div>`);
+  }
+
+  const amtRaw=toAscii(fields[8]||[]);
+  if(amtRaw){
+    const amtNum=parseInt(amtRaw,10);
+    html+=section('Amount Entry','<span class="badge badge-ok">F8</span>',`
+      <table class="field-table">
+        <tr><td class="field-name">Raw value</td><td class="field-val"><span style="color:var(--amber)">${amtRaw}</span><button class="edit-btn" onclick="jumpEdit(8)">✎ Edit</button></td></tr>
+        <tr><td class="field-name">Interpreted</td><td class="field-val">${isNaN(amtNum)?amtRaw:(amtNum/100).toFixed(2)+' (minor units ÷ 100)'}</td></tr>
+      </table>`);
+  }
+
+  const pinBytes=fields[9]||[];
+  if(pinBytes.length>0){
+    const pinHex=toHex(pinBytes), pinAsc=toAscii(pinBytes);
+    html+=section('PIN Block','<span class="badge badge-err">F9 · Encrypted</span>',`
+      <table class="field-table">
+        <tr><td class="field-name">Hex</td><td class="field-val"><span style="color:var(--red)">${pinHex}</span><button class="edit-btn" onclick="jumpEdit(9)">✎ Edit</button></td></tr>
+        <tr><td class="field-name">ASCII repr</td><td class="field-val" style="color:var(--text2)">${pinAsc}</td></tr>
+        <tr><td class="field-name">Length</td><td class="field-val">${pinBytes.length} bytes (${pinBytes.length*8} bits)</td></tr>
+      </table>
+      <div style="padding:6px 14px"><div class="pin-warning">&#9888; PIN block is encrypted (ISO 9564 format). Cannot be decoded without the PIN encryption key.</div></div>`);
+  }
+
+  let bufferB=toAscii(fields[10]||[]);
+  if(bufferB){
+    html+=section('Buffer B','<span class="badge badge-ok">F10</span>',`
+      <table class="field-table"><tr><td class="field-name">Value</td><td class="field-val">${bufferB}<button class="edit-btn" onclick="jumpEdit(10)">✎ Edit</button></td></tr></table>`);
+  }
+
+  // EMV
+  let emvHex='';
+  for(let i=11;i<fields.length;i++){
+    const fb=fields[i];
+    if(!fb||!fb.length) continue;
+    const gsIdx=fb.indexOf(GS);
+    let candidate='';
+    if(gsIdx>=0) candidate=toAscii(fb.slice(gsIdx+1));
+    else candidate=toAscii(fb);
+    if(i+1<fields.length) candidate+=toAscii(fields[i+1]||[]);
+    const cleaned=candidate.startsWith('e')||candidate.startsWith('E')?candidate.slice(1):candidate;
+    if(/^[0-9A-Fa-f]{8,}$/.test(cleaned)){emvHex=cleaned;break;}
+  }
+
+  if(emvHex){
+    const tags=parseEmvTlv(emvHex);
+    if(tags.length>0){
+      let rows=`<table class="emv-table"><tr><th>Tag</th><th>Len</th><th>Name</th><th>Value</th></tr>`;
+      tags.forEach(({tag,len,val})=>{
+        const name=EMV_TAGS[tag.toUpperCase()]||'Proprietary';
+        const decoded=decodeTagVal(tag,val);
+        const decodedHtml=decoded?`<div class="tag-decoded">&#x21B3; ${decoded}</div>`:'';
+        const tvrHtml=tag.toUpperCase()==='95'?`<div class="tag-decoded" style="color:var(--amber)">&#x21B3; ${renderTVR(val)}</div>`:'';
+        rows+=`<tr><td><span class="tag-name">${tag}</span></td><td><span class="tag-len">${len}</span></td><td><span class="tag-desc">${name}</span></td><td><span class="tag-val">${val}</span>${decodedHtml}${tvrHtml}</td></tr>`;
+      });
+      rows+='</table>';
+      html+=section(`EMV / ICC Data — ${tags.length} tags`,'<span class="badge badge-emv">F13+</span>',rows);
+    }
+  }
+
+  html+=section('Raw Hex View','<button class="copy-btn" onclick="copyHex()">Copy hex</button>',`<div class="hex-view" id="hexview">${renderHexView(bytes)}</div>`);
+  return html;
+}
+
+function section(title,extra,content){
+  return`<div class="section"><div class="section-header"><span>${title}</span><span>${extra||''}</span></div>${content}</div>`;
+}
+
+function jumpEdit(i){
+  // Open the field panel and scroll to it
+  const body=document.getElementById('efb-'+i);
+  if(!body) return;
+  if(!body.classList.contains('open')){
+    body.classList.add('open');
+    document.getElementById('ef-'+i).classList.add('is-active');
+  }
+  const scroll=document.getElementById('editor-scroll');
+  const ef=document.getElementById('ef-'+i);
+  if(ef) ef.scrollIntoView({behavior:'smooth',block:'center'});
+  setTimeout(()=>document.getElementById('efi-'+i)?.focus(),200);
+}
+
+function copyHex(){
+  const el=document.getElementById('hexview');
+  if(!el) return;
+  navigator.clipboard.writeText(el.innerText);
+}
+
+function parseAll(){
+  const text=document.getElementById('inp').value.trim();
+  if(!text) return;
+  const blocks=splitBlocks(text);
+  sessions=blocks.map(({header,body})=>parseMessage(header,body)).filter(Boolean);
+  if(!sessions.length){
+    document.getElementById('center').innerHTML='<div class="no-messages" style="padding:40px;text-align:center">No parseable NDC data found.</div>';
+    return;
+  }
+  document.getElementById('placeholder').style.display='none';
+  renderSession(0);
+}
+
+function renderSession(idx){
+  activeIdx=idx;
+  edits={};
+  updateEditCounter();
+  const bar=document.getElementById('session-bar');
+  const out=document.getElementById('parsed-out');
+  if(sessions.length>1){
+    bar.style.display='block';
+    bar.innerHTML=sessions.map((s,i)=>{
+      const dir=s.isSent?`<span class="badge badge-sent">SENT</span>`:`<span class="badge badge-recv">RECV</span>`;
+      const cls=i===idx?'session-item active':'session-item';
+      return`<div class="${cls}" onclick="renderSession(${i})">${dir}<div class="session-meta"><div class="session-title">${s.classInfo.name} (${s.msgClass}${s.msgSub})</div><div class="session-sub">${s.peer} · ${s.totalBytes} bytes</div></div></div>`;
+    }).join('');
+  } else {
+    bar.style.display='none';
+  }
+  out.innerHTML=`<div class="parsed-area">${renderParsed(sessions[idx])}</div>`;
+  buildEditor(sessions[idx]);
+}
+
+function clearAll(){
+  document.getElementById('inp').value='';
+  sessions=[];
+  edits={};
+  document.getElementById('session-bar').style.display='none';
+  document.getElementById('parsed-out').innerHTML='';
+  document.getElementById('placeholder').style.display='flex';
+  document.getElementById('editor-placeholder').style.display='flex';
+  document.getElementById('editor-fields').style.display='none';
+  document.getElementById('rebuild-section').style.display='none';
+  document.getElementById('edit-counter').textContent='';
+}
+
+function exportJson(){
+  if(!sessions.length){alert('Parse something first.');return;}
+  const data=sessions.map(s=>({
+    direction:s.isSent?'ATM→Host':'Host→ATM',
+    peer:s.peer,
+    totalBytes:s.totalBytes,
+    frameLength:s.frameLen,
+    messageClass:s.msgClass,
+    messageSubclass:s.msgSub,
+    messageType:s.classInfo.name,
+    subtype:s.subName,
+    fields:s.fields.map((f,i)=>({
+      index:i,
+      name:TXN_REQ_FIELDS[i]||`Field ${i}`,
+      hex:toHex(f),
+      ascii:toAscii(f),
+    })),
+  }));
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='ndc-session.json';
+  a.click();
+}
+
+function loadExample(){
+  document.getElementById('inp').value=`TCP:Sent 390 bytes to 10.2.1.122:2903
+0000: 01 84 31 31 1C 30 30 30 1C 1C 1C 31 3A 1C 3B 34 ..11.000...1:.;4
+0010: 31 30 33 32 37 31 30 30 30 30 30 31 31 34 34 3D 103271000001144=
+0020: 32 38 30 31 32 30 31 32 31 31 36 36 37 35 39 30 2801201211667590
+0030: 30 30 30 30 3F 1C 1C 43 44 20 20 20 43 20 42 1C 0000?..CD...C.B.
+0040: 30 30 30 30 30 30 30 30 30 30 30 30 1C 3B 3B 3E 000000000000.;;>
+0050: 39 3F 3B 34 31 3A 34 3C 3F 3C 31 3B 3A 1C 31 31 9?;41:4<?<1;:.11
+0060: 31 1C 1C 1C 32 30 33 34 34 31 30 30 30 30 30 30 1...203441000000
+0070: 30 30 30 30 30 30 30 30 30 30 30 30 30 32 1D 65 00000000000002.e
+0080: 1C 65 39 46 30 32 30 36 30 30 30 30 30 30 30 30 .e9F020600000000
+0090: 30 30 30 30 39 46 30 33 30 36 30 30 30 30 30 30 00009F0306000000
+00A0: 30 30 30 30 30 30 39 46 31 41 30 32 30 38 31 38 0000009F1A020818
+00B0: 39 35 30 35 38 30 38 30 30 34 30 30 30 30 39 41 950580800400009A
+00C0: 30 33 32 36 30 34 32 33 39 43 30 31 30 32 39 46 032604239C01029F
+00D0: 33 37 30 34 34 36 44 30 43 46 42 33 39 46 33 33 370446D0CFB39F33
+00E0: 30 33 36 30 34 30 32 30 39 46 32 37 30 31 38 30 036040209F270180
+00F0: 39 46 33 36 30 32 30 31 32 43 39 46 32 36 30 38 9F3602012C9F2608
+0100: 43 46 30 34 30 35 31 39 38 36 34 44 30 36 31 45 CF040519864D061E
+0110: 39 46 31 30 30 37 30 36 30 31 31 32 30 33 41 30 9F100706011203A0
+0120: 41 38 30 31 38 32 30 32 33 38 30 30 35 37 31 33 A801820238005713
+0130: 34 31 30 33 32 37 31 30 30 30 30 30 31 31 34 34 4103271000001144
+0140: 44 32 38 30 31 32 30 31 32 31 31 36 36 37 35 39 D280120121166759
+0150: 30 30 30 30 30 46 39 46 33 34 30 33 30 32 30 33 00000F9F34030203
+0160: 30 30 35 46 33 34 30 31 30 30 38 34 30 37 41 30 005F3401008407A0
+0170: 30 30 30 30 30 30 30 33 31 30 31 30 35 46 32 41 0000000310105F2A
+0180: 30 32 30 38 31 38                               020818`;
+  parseAll();
+}
+</script>
+</body>
+</html>
